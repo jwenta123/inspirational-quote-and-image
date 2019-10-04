@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { useState, useCallback } from 'react';
 
 import classes from './Pictures.module.css';
 
@@ -11,89 +11,79 @@ import Spinner from '../UI/Spinner/Spinner';
 import withErrorHandler from '../../hoc/withErrorHandler/withErrorHandler';
 import axios from 'axios';
 
-class Pictures extends Component {
-	state = {
-		pictureSrc   : null,
-		loading      : false,
-		initialClick : false,
-		error        : false
-	};
+const Pictures = (props) => {
+	const [ currentPictureSrc, setPictureSrc ] = useState('');
+	const [ isLoading, setLoading ] = useState(false);
+	const [ wasInitialClick, setInitialClick ] = useState(false);
+	// eslint-disable-next-line no-unused-vars
+	const [ isError, setError ] = useState(false);
+	const [ imgSource, setImgSource ] = useState(
+		'https://i.imgur.com/VO4xfG8.jpg'
+	);
 
-	componentDidUpdate () {
-		let pictureUrl = this.state.pictureSrc;
-		axios
-			.get(pictureUrl)
-			.then((response) =>
-				this.setState({
-					pictureSrc : response.config.url,
-					loading    : false
+	const randomImageHandler = useCallback(
+		async () => {
+			setLoading(true);
+			if (wasInitialClick === false) {
+				setInitialClick(true);
+			}
+			setImgSource(pictures[Math.floor(Math.random() * pictures.length)]);
+			await axios
+				.get(imgSource)
+				.then((response) => {
+					setPictureSrc(response.config.url).then(setLoading(false));
 				})
-			)
-			.catch((error) => {
-				this.setState({ error: true });
-				this.setState({ loading: false });
-			});
+				.catch((isError) => {
+					setError(true);
+					setLoading(false);
+				});
+		},
+		[ imgSource, wasInitialClick ]
+	);
+
+	let image = <Quotes />;
+	let spinner = null;
+
+	let quoteStyle = {
+		color : 'white'
+	};
+
+	if (isLoading) {
+		spinner = <Spinner />;
+		quoteStyle = { color: 'rgba(0,0,0,0)' };
 	}
-	shouldComponentUpdate (nextProps, nextState) {
-		return this.state.loading !== nextState.loading;
-	}
 
-	randomImageHandler = () => {
-		let imgSource = pictures[Math.floor(Math.random() * pictures.length)];
-		this.setState({ pictureSrc: imgSource });
-	};
-
-	loadHandler = () => {
-		this.setState({ loading: true });
-	};
-
-	initialClickHandler = () => {
-		this.setState({ initialClick: true });
-	};
-
-	render () {
-		let image = <Quotes />;
-		let spinner = null;
-
-		let quoteStyle = {
-			color : 'white'
-		};
-
-		if (this.state.loading) {
-			spinner = <Spinner />;
-			quoteStyle = { color: 'rgba(0,0,0,0)' };
-		}
-
-		if (this.state.initialClick) {
-			image = (
+	if (wasInitialClick) {
+		image = (
+			<div>
 				<div>
-					<div>
-						<img
-							className={classes.img}
-							src={this.state.pictureSrc}
-							alt={`${this.state.pictureSrc}`}
-						/>
-						{image}
-					</div>
-					<BackgroundImage currentPicture={this.state.pictureSrc} />
+					<img
+						className={classes.img}
+						src={currentPictureSrc}
+						alt={`${currentPictureSrc}`}
+					/>
+					<Quotes />
 				</div>
-			);
-		}
-
-		return (
-			<div
-				style={quoteStyle}
-				onClick={() => {
-					this.randomImageHandler();
-					this.loadHandler();
-					this.initialClickHandler();
-				}}
-			>
-				{spinner}
-				{image}
+				<BackgroundImage currentPicture={currentPictureSrc} />
 			</div>
 		);
 	}
-}
 
-export default withErrorHandler(Pictures, axios);
+	return (
+		<div style={quoteStyle} onClick={randomImageHandler}>
+			{spinner}
+			{image}
+		</div>
+	);
+};
+
+export default withErrorHandler(
+	React.memo(
+		Pictures,
+		(prevState, nextState) =>
+			nextState.wasInitialClick !== prevState.wasInitialClick ||
+			(nextState.isLoading !== prevState.isLoading &&
+				nextState.imgSource !== prevState.imgSource)
+	),
+	axios
+);
